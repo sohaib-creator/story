@@ -11,8 +11,20 @@ services:
           name: story-db
           property: connectionString
 
+    # Run schema automatically on every deploy.
+    # This avoids relying on `psql` being available in the Render container.
+    preDeployCommand: |
+      node -e "(async()=>{const fs=require('fs');const {Client}=require('pg');const schema=fs.readFileSync('schema.sql','utf8');
+      const client=new Client({connectionString:process.env.DATABASE_URL,ssl:process.env.DATABASE_URL?{rejectUnauthorized:false}:false});
+      await client.connect();
+      const statements=schema.split(/;\s*\n/).map(s=>s.trim()).filter(Boolean);
+      for(const st of statements){const sql=st.endsWith(';')?st:st+';'; await client.query(sql);} 
+      await client.end();
+      })().catch(e=>{console.error(e);process.exit(1);});" 
+
 databases:
   - name: story-db
     plan: free
     databaseName: story
     user: postgres
+
